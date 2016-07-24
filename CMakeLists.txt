@@ -4,7 +4,7 @@ project(raspicam)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS compressed_image_transport roscpp std_msgs camera_info_manager)
+find_package(catkin REQUIRED COMPONENTS roscpp std_msgs camera_info_manager image_transport)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -77,7 +77,7 @@ include_directories(include
  )
 
 ## Declare a cpp executable
- add_executable(raspicam_node src/raspicam_node.cpp)
+# add_executable(raspicam_node src/raspicam_node.cpp)
  add_executable(raspicam_raw_node src/raspicam_raw_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
@@ -85,17 +85,17 @@ include_directories(include
 # add_dependencies(raspicam_node raspicam_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(raspicam_node
-   ${catkin_LIBRARIES}
-raspicamcontrol raspicli   
-/opt/vc/lib/libbcm_host.so
-/opt/vc/lib/libvcos.so
-/opt/vc/lib/libmmal.so
-/opt/vc/lib/libmmal_core.so
-/opt/vc/lib/libmmal_util.so
-/opt/vc/lib/libmmal_vc_client.so
-/opt/vc/lib/libvchostif.a
-)
+# target_link_libraries(raspicam_node
+#   ${catkin_LIBRARIES}
+#raspicamcontrol raspicli   
+#/opt/vc/lib/libbcm_host.so
+#/opt/vc/lib/libvcos.so
+#/opt/vc/lib/libmmal.so
+#/opt/vc/lib/libmmal_core.so
+#/opt/vc/lib/libmmal_util.so
+#/opt/vc/lib/libmmal_vc_client.so
+#/opt/vc/lib/libvchostif.a
+#)
 
  target_link_libraries(raspicam_raw_node
    ${catkin_LIBRARIES}

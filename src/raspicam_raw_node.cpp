@@ -72,6 +72,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "std_srvs/Empty.h"
 #include "sensor_msgs/CameraInfo.h"
 #include "sensor_msgs/SetCameraInfo.h"
+#include "image_transport/image_transport.h"
 #include "camera_info_manager/camera_info_manager.h"
 
 #include "RaspiCamControl.h"
@@ -120,12 +121,12 @@ typedef struct
 
    //MMAL_POOL_T *video_pool; /// Pointer to the pool of buffers used by encoder output port
    MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
-   ros::Publisher *image_pub;
+   image_transport::CameraPublisher *image_pub;
 } RASPIVID_STATE;
 
 RASPIVID_STATE state_srv;
-ros::Publisher image_pub;
-ros::Publisher camera_info_pub;
+image_transport::CameraPublisher image_pub;
+//ros::Publisher camera_info_pub;
 sensor_msgs::CameraInfo c_info;
 std::string tf_prefix;
 
@@ -263,15 +264,15 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		msg.header.stamp = ros::Time::now();
 		msg.height = pData->pstate->height;
 		msg.width = pData->pstate->width;
-		msg.encoding = "bgra8";
+		msg.encoding = "rgba8";
 		msg.is_bigendian = 0;
 		msg.step = pData->pstate->width*4;
 		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
-		image_pub.publish(msg);
 		c_info.header.seq = pData->frame;
 		c_info.header.stamp = msg.header.stamp;
 		c_info.header.frame_id = msg.header.frame_id;
-		camera_info_pub.publish(c_info);
+		image_pub.publish(msg,c_info);
+		//camera_info_pub.publish(c_info);
 		pData->frame++;
 		pData->id = 0;		
 	}
@@ -819,7 +820,7 @@ bool serv_stop_cap(	std_srvs::Empty::Request  &req,
 int main(int argc, char **argv){
    ros::init(argc, argv, "raspicam_raw_node");
    ros::NodeHandle n;
-   camera_info_manager::CameraInfoManager c_info_man (n, "camera", "package://raspicam/calibrations/camera.yaml");
+   camera_info_manager::CameraInfoManager c_info_man (n, "raspicam", "package://raspicam/calibrations/camera.yaml");
    get_status(&state_srv);
 
    if(!c_info_man.loadCameraInfo ("package://raspicam/calibrations/camera.yaml")){
@@ -830,10 +831,34 @@ int main(int argc, char **argv){
    	c_info = c_info_man.getCameraInfo ();
 	ROS_INFO("Camera successfully calibrated");
    }
-   image_pub = n.advertise<sensor_msgs::Image>("camera/image", 1);
-   camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
-   ros::ServiceServer start_cam = n.advertiseService("camera/start_capture", serv_start_cap);
-   ros::ServiceServer stop_cam = n.advertiseService("camera/stop_capture", serv_stop_cap);
+
+   if (c_info.height!=state_srv.height) {
+     double ratio = double(state_srv.height)/double(c_info.height);
+     if (double(state_srv.width)/double(c_info.width)!=ratio){
+       ROS_ERROR("Error: Image size needs to be a scalar multiple of 640x480");
+       exit(0);
+     }
+     c_info.width = state_srv.width;
+     c_info.height = state_srv.height;
+     c_info.K[0]*=ratio;
+     c_info.K[2]*=ratio;
+     c_info.K[4]*=ratio;
+     c_info.K[5]*=ratio;
+     c_info.P[0]*=ratio;
+     c_info.P[2]*=ratio;
+     c_info.P[5]*=ratio;
+     c_info.P[6]*=ratio;
+   }
+   
+   image_transport::ImageTransport it(n);
+   
+   image_pub = it.advertiseCamera("image_raw", 1);
+   //camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
+   ros::ServiceServer start_cam = n.advertiseService("start_capture", serv_start_cap);
+   ros::ServiceServer stop_cam = n.advertiseService("stop_capture", serv_stop_cap);
+
+   start_capture(&state_srv);   
+   
    ros::spin();
    close_cam(&state_srv);
    return 0;
